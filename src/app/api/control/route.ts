@@ -12,6 +12,7 @@ import { config } from "@/lib/config";
 import { setSwitchBotPlugState } from "@/lib/switchbot";
 import { getMockAuth, checkPinForOff } from "@/lib/auth-mock";
 import { getSocStatus } from "@/lib/soc-status";
+import { isDbConfigured } from "@/lib/env-status";
 
 const TARGET_PLUG = "switchbot_plug_1";
 
@@ -20,6 +21,13 @@ export const dynamic = "force-dynamic";
 type Body = { action?: string; reason?: string; overrideLowSoc?: boolean };
 
 export async function POST(request: Request) {
+  if (!isDbConfigured()) {
+    return NextResponse.json(
+      { error: "Database not configured", message: "Set POSTGRES_* env" },
+      { status: 500 }
+    );
+  }
+
   const user = getMockAuth(request);
   if (!user) {
     return NextResponse.json(

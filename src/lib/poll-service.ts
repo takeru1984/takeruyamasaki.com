@@ -6,6 +6,7 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { requireDbConfigured } from "@/lib/env-status";
 import { config } from "@/lib/config";
 import { fetchEcoFlowSnapshot } from "@/lib/ecoflow";
 import {
@@ -78,6 +79,7 @@ async function forceChargeOn(opts: ForceChargeOptions): Promise<void> {
 }
 
 export async function runPoll(): Promise<PollResult> {
+  requireDbConfigured();
   await ensureSystemStatus();
 
   const status = await prisma.systemStatus.findUnique({ where: { id: 1 } });

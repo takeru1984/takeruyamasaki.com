@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { isDbConfigured } from "@/lib/env-status";
 
 const PAGE_SIZE = 20;
 
@@ -16,14 +17,17 @@ export default async function LogsPage({
   const page = Math.max(1, parseInt(pageStr ?? "1", 10) || 1);
   const skip = (page - 1) * PAGE_SIZE;
 
-  const [items, total] = await Promise.all([
-    prisma.operationLog.findMany({
-      take: PAGE_SIZE,
-      skip,
-      orderBy: { occurredAt: "desc" },
-    }),
-    prisma.operationLog.count(),
-  ]);
+  const dbConfigured = isDbConfigured();
+  const [items, total] = dbConfigured
+    ? await Promise.all([
+        prisma.operationLog.findMany({
+          take: PAGE_SIZE,
+          skip,
+          orderBy: { occurredAt: "desc" },
+        }),
+        prisma.operationLog.count(),
+      ])
+    : [[], 0];
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -43,6 +47,14 @@ export default async function LogsPage({
           </Link>
         </nav>
       </header>
+
+      {!dbConfigured && (
+        <div className="mb-4 rounded-lg border border-amber-500/50 bg-amber-50 p-4 dark:bg-amber-950/30">
+          <p className="font-medium text-amber-800 dark:text-amber-200">
+            DB not configured. Set POSTGRES_PRISMA_URL and POSTGRES_URL_NON_POOLING.
+          </p>
+        </div>
+      )}
 
       <p className="mb-4 text-zinc-600 dark:text-zinc-400">
         全 {total} 件（DB データのみ・外部 API 呼び出しなし）

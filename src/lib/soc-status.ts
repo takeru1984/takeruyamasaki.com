@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { isDbConfigured } from "@/lib/env-status";
 
 const STALE_MINUTES = 5;
 
@@ -14,7 +15,18 @@ export type SocStatus = {
   isUnknown: boolean;
 };
 
+const STALE_DEFAULT: SocStatus = {
+  lastSuccessSoc: null,
+  lastPollAt: null,
+  isStale: true,
+  isUnknown: true,
+};
+
 export async function getSocStatus(): Promise<SocStatus> {
+  if (!isDbConfigured()) {
+    return Promise.resolve(STALE_DEFAULT);
+  }
+
   const status = await prisma.systemStatus.findUnique({ where: { id: 1 } });
   const lastSuccessSoc = status?.lastSuccessSoc ?? null;
   const lastPollAt = status?.lastPollAt ?? null;

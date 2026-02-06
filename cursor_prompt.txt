@@ -1,0 +1,6 @@
+[Cursor] Fix getSocStatus when DB is not configured
+目的: DB未設定時にも /dashboard などが500を返さないよう、`getSocStatus` が Prisma にアクセスしないようにする。
+作業内容:
+1. `src/lib/soc-status.ts` に `isDbConfigured()` を import し、DB未設定の場合は `Promise.resolve({ lastSuccessSoc: null, lastPollAt: null, isStale: true, isUnknown: true })` を即返す。
+2. DBが設定されている場合のみ Prisma から `systemStatus` を取得して現在ロジックを実行する。
+3. 変更後 `npm run lint` と `npm run test` を実行して結果を共有し、commit message 案を提示。

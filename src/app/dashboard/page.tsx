@@ -2,32 +2,37 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSocStatus } from "@/lib/soc-status";
 import { config } from "@/lib/config";
+import { isDbConfigured } from "@/lib/env-status";
 import { DashboardControl } from "./DashboardControl";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const dbConfigured = isDbConfigured();
+
   const [systemStatus, latestEcoflow, latestSwitchbot, recentStates, recentLogs, socStatus] =
-    await Promise.all([
-      prisma.systemStatus.findUnique({ where: { id: 1 } }),
-      prisma.deviceState.findFirst({
-        where: { source: "ecoflow" },
-        orderBy: { collectedAt: "desc" },
-      }),
-      prisma.deviceState.findFirst({
-        where: { source: "switchbot" },
-        orderBy: { collectedAt: "desc" },
-      }),
-      prisma.deviceState.findMany({
-        take: 10,
-        orderBy: { collectedAt: "desc" },
-      }),
-      prisma.operationLog.findMany({
-        take: 10,
-        orderBy: { occurredAt: "desc" },
-      }),
-      getSocStatus(),
-    ]);
+    dbConfigured
+      ? await Promise.all([
+          prisma.systemStatus.findUnique({ where: { id: 1 } }),
+          prisma.deviceState.findFirst({
+            where: { source: "ecoflow" },
+            orderBy: { collectedAt: "desc" },
+          }),
+          prisma.deviceState.findFirst({
+            where: { source: "switchbot" },
+            orderBy: { collectedAt: "desc" },
+          }),
+          prisma.deviceState.findMany({
+            take: 10,
+            orderBy: { collectedAt: "desc" },
+          }),
+          prisma.operationLog.findMany({
+            take: 10,
+            orderBy: { occurredAt: "desc" },
+          }),
+          getSocStatus(),
+        ])
+      : [null, null, null, [], [], { lastSuccessSoc: null, lastPollAt: null, isStale: true, isUnknown: true }];
 
   const soc = latestEcoflow?.soc ?? systemStatus?.lastSuccessSoc ?? null;
   const switchbotState = latestSwitchbot?.switchbotState ?? "UNKNOWN";
@@ -50,6 +55,14 @@ export default async function DashboardPage() {
           </Link>
         </nav>
       </header>
+
+      {!dbConfigured && (
+        <div className="mb-4 rounded-lg border border-amber-500/50 bg-amber-50 p-4 dark:bg-amber-950/30">
+          <p className="font-medium text-amber-800 dark:text-amber-200">
+            DB not configured. Set POSTGRES_PRISMA_URL and POSTGRES_URL_NON_POOLING.
+          </p>
+        </div>
+      )}
 
       <DashboardControl
         lastSuccessSoc={socStatus.lastSuccessSoc}

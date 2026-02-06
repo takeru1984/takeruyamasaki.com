@@ -14,6 +14,7 @@
  */
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
+import { isDbConfigured } from "@/lib/env-status";
 import { runPoll } from "@/lib/poll-service";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,13 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: "Unauthorized", message: "Cron secret required" },
       { status: 401 }
+    );
+  }
+
+  if (!isDbConfigured()) {
+    return NextResponse.json(
+      { error: "Database not configured", message: "Set POSTGRES_* env" },
+      { status: 500 }
     );
   }
 

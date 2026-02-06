@@ -6,12 +6,31 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/env-status", () => ({
+  isDbConfigured: vi.fn(),
+}));
+
 import { getSocStatus } from "../src/lib/soc-status";
 import { prisma } from "@/lib/db";
+import { isDbConfigured } from "@/lib/env-status";
 
 describe("getSocStatus", () => {
   beforeEach(() => {
+    vi.mocked(isDbConfigured).mockReturnValue(true);
     vi.mocked(prisma.systemStatus.findUnique).mockReset();
+  });
+
+  it("returns stale default when DB not configured", async () => {
+    vi.mocked(isDbConfigured).mockReturnValue(false);
+
+    const status = await getSocStatus();
+    expect(status).toEqual({
+      lastSuccessSoc: null,
+      lastPollAt: null,
+      isStale: true,
+      isUnknown: true,
+    });
+    expect(prisma.systemStatus.findUnique).not.toHaveBeenCalled();
   });
 
   it("returns isUnknown when lastSuccessSoc is null", async () => {
