@@ -1,121 +1,86 @@
-# Post-Deploy Verification レポート
+# Post-Deploy Verification 手順
 
-**検証日時**: 2025-02-06  
-**対象URL**: https://takeruyamasaki-com.vercel.app
-
----
-
-## 1. 現状の結果
-
-### HTTP レスポンス
-
-| パス | HTTPステータス | 備考 |
-|------|----------------|------|
-| `/` | 404 | ボディ: `DEPLOYMENT_NOT_FOUND` |
-| `/dashboard` | 404 | ルート404のため HTML 取得不可 |
-| `/history` | 404 | 同上 |
-| `/logs` | 404 | 同上 |
-| `/api/health` | 404 | 同上 |
-| `/api/poll` | 404 | curl 例を実施する前提で要デプロイ |
-
-### 判定
-
-**`takeruyamasaki-com.vercel.app` は現時点で DEPLOYMENT_NOT_FOUND（404）を返しています。**
-
-- EcoFlow Dashboard プロジェクトがこのドメインにデプロイされていない
-- または、別の Vercel プロジェクト（例: ポートフォリオサイト）がこのドメインを占有している可能性
+本ドキュメントは、デプロイ後の動作確認およびトラブルシューティングの手順をまとめた最新版です。
 
 ---
 
-## 2. デプロイ後の検証手順
+## 1. デプロイ直後の確認（404・未デプロイ時の対応）
 
-デプロイが完了し、URL が有効になったら以下を実行してください。
+デプロイ先 URL にアクセスして **404 DEPLOYMENT_NOT_FOUND** が発生する場合、ビルドがまだ完了していないか、プロジェクトがスタックしている可能性があります。
 
-### 2.1 ページ取得確認
+### 強制再デプロイの手順
+1. **空コミットのプッシュ**:
+   ```bash
+   git commit --allow-empty -m "Chore: trigger deployment"
+   git push origin main
+   ```
+2. **Vercel CLI での強制デプロイ**:
+   ```bash
+   vercel --prod
+   ```
+
+> [!NOTE]  
+> 独自ドメイン（例: `ecoflow.takeruyamasaki.com`）を割り当てる場合は、Vercel Dashboard の **Settings > Domains** で設定し、DNS レコードが反映されていることを確認してください。
+
+---
+
+## 2. 実稼働後の検証ステップ
+
+### 2.1 画面表示とガード表示の確認
+ブラウザで各ページを確認します。DB設定が不完全な場合はガード（警告）が表示されます。
+
+| パス | 確認内容 | 期待結果（正常時） | DB未設定時の挙動 |
+|---|---|---|---|
+| `/dashboard` | メイン画面 | SoC（%）、SwitchBot状態、直近履歴 | 「DB not configured」警告を表示。データは「—」またはスタブ値を表示。 |
+| `/history` | 履歴一覧 | 過去の記録がリスト表示される。 | 警告が表示され、リストは空。 |
+| `/logs` | 操作ログ | システム操作の記録が表示される。 | 警告が表示され、ログは空。 |
+
+### 2.2 /api/poll (Cron) の手動実行確認
+Vercel Cron の動作を確認するため、手動でリクエストを送信します。
 
 ```bash
-# ダッシュボード
-curl -s -w "\nHTTP:%{http_code}" https://<YOUR_DEPLOYMENT_URL>/dashboard | tail -20
+# .env.local からシークレットを読み込んで実行
+if [ -f .env.local ]; then export $(grep -v '^#' .env.local | xargs); fi
 
-# 履歴
-curl -s -w "\nHTTP:%{http_code}" https://<YOUR_DEPLOYMENT_URL>/history | tail -20
-
-# ログ
-curl -s -w "\nHTTP:%{http_code}" https://<YOUR_DEPLOYMENT_URL>/logs | tail -20
-```
-
-**確認項目**:
-- HTTP 200 が返ること
-- HTML に「ダッシュボード」「履歴」「操作ログ」などの主要セクションが含まれること
-- エラーメッセージや missing データが表示されていないこと
-
-### 2.2 /api/poll 実行
-
-`.env.local` または Vercel 環境変数に設定した `CRON_SECRET` を使用:
-
-```bash
-# CRON_SECRET を環境変数から読み込んで実行
-source .env.local 2>/dev/null || true
-curl -s -w "\nHTTP:%{http_code}" \
+curl -i -X GET \
   -H "Authorization: Bearer ${CRON_SECRET}" \
-  "https://<YOUR_DEPLOYMENT_URL>/api/poll"
+  "https://<YOUR_URL>/api/poll"
 ```
 
-**期待レスポンス例**:
-```json
-{"ok":true,"failSafeTriggered":false,"ecoflowSoc":80,"switchbotState":"ON","pollFailureCount":0}
-```
-または（API未設定時）:
-```json
-{"ok":false,"reason":"EcoFlow env not configured...","pollFailureCount":1}
-```
-
-**DB 確認**:
-- Vercel Postgres (Prisma Studio または `psql`) で以下を確認:
-  - `system_status`: `last_poll_at` が更新されている
-  - `device_state`: 新規レコードが追加されている（EcoFlow/SwitchBot API が有効な場合）
-  - `operation_logs`: フェイルセーフ時は `CHARGE_ON` が記録されている
-
-### 2.3 Vercel Cron 設定確認
-
-Vercel ダッシュボード（Pro プラン）で以下を確認:
-
-1. **Project** → **Settings** → **Cron Jobs**
-2. `/api/poll` が `*/2 * * * *` (2分ごと) で登録されていること
-3. **Environment Variables** に `CRON_SECRET` が設定され、その値が curl で使用する値と一致していること
-
-`vercel.json` の内容:
+**期待レスポンス (`200 OK`)**:
 ```json
 {
-  "crons": [
-    {
-      "path": "/api/poll",
-      "schedule": "*/2 * * * *"
-    }
-  ]
+  "ok": true,
+  "failSafeTriggered": false,
+  "ecoflowSoc": 80,
+  "switchbotState": "ON",
+  "pollFailureCount": 0
 }
 ```
 
 ---
 
-## 3. .env.local の現状（検証時点）
+## 3. Vercel Cron (Pro プラン) の設定
 
-- `CRON_SECRET=REPLACE_ME_RANDOM_LONG_STRING` のままのため、本番では必ずランダムな文字列に置換すること
-- Vercel の環境変数にも同じ値を設定すること
-- `POSTGRES_*` が `REPLACE_ME_*` の場合は、Vercel Postgres の接続情報で上書きすること
+Vercel の Cron Jobs 機能を利用するには **Pro プラン** 以上が必要です。
+
+1. **vercel.json**: `crons` 項目が含まれていることを確認（設定済み）。
+2. **プロジェクト設定**: Vercel Dashboard > Settings > Cron Jobs にて、`/api/poll` が登録されていることを確認。
+3. **実行周期**: デフォルトでは 2分間隔（`*/2 * * * *`）で設定されています。
 
 ---
 
-## 4. 次のアクション
+## 4. 環境変数・シークレット管理
 
-1. **EcoFlow Dashboard のデプロイ**
-   - 別 Vercel プロジェクトとして作成するか、`takeruyamasaki-com.vercel.app` のプロジェクトにこのリポジトリを接続
-   - デプロイ後に上記 2.1〜2.3 を再実行
+### 4.1 CRON_SECRET の再生成・反映
+1. **生成**: `openssl rand -base64 32`
+2. **Vercel反映**: Dashboard > Settings > Environment Variables で `CRON_SECRET` を更新。
+3. **ローカル反映**: `.env.local` を更新。
 
-2. **環境変数の設定**
-   - Vercel Project Settings → Environment Variables で全変数を設定
-   - `CRON_SECRET` を必ず本番用の値に変更
+---
 
-3. **Cron の有効化**
-   - Pro プランで Cron Jobs が有効か確認
-   - 初回は手動で `/api/poll` を curl 実行して動作確認してから Cron に任せる
+## 5. トラブルシューティング
+
+- **DB not configured**: Vercel Storage で Postgres を接続し、環境変数が注入されているか確認してください。
+- **401 Unauthorized**: 送信した `Bearer` トークンが Vercel 上の `CRON_SECRET` と一致しているか再確認してください。
+- **データ不更新**: Vercel の **Logs** タブで `/api/poll` のログを確認してください。失敗時はフェイルセーフ（充電器ON維持）が発動します。

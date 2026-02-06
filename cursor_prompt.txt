@@ -1,6 +1,7 @@
-[Cursor] Fix getSocStatus when DB is not configured
-目的: DB未設定時にも /dashboard などが500を返さないよう、`getSocStatus` が Prisma にアクセスしないようにする。
+[Cursor] Lazy Prisma client when DB env missing
+目的: POSTGRES_* が未設定の本番環境でも /dashboard 等が 500 にならないよう、PrismaClient の生成を DB 設定後まで遅延させる。
 作業内容:
-1. `src/lib/soc-status.ts` に `isDbConfigured()` を import し、DB未設定の場合は `Promise.resolve({ lastSuccessSoc: null, lastPollAt: null, isStale: true, isUnknown: true })` を即返す。
-2. DBが設定されている場合のみ Prisma から `systemStatus` を取得して現在ロジックを実行する。
-3. 変更後 `npm run lint` と `npm run test` を実行して結果を共有し、commit message 案を提示。
+1. `src/lib/db.ts` を更新し、直接 `new PrismaClient()` せず `getPrismaClient()` を通じて初期化する。`isDbConfigured()` を import し、未設定なら `Error("Database not configured")` を投げる。
+2. 既存の `prisma.systemStatus...` と同じ API を維持するため、`new Proxy` などを用いて `prisma` が遅延的に `PrismaClient` のメソッド/プロパティに委譲する。
+3. 開発環境でのグローバルキャッシュ（`globalThis.prisma`）も維持。
+4. 変更後 `npm run lint` と `npm run test` を実行し、結果を共有。commit message 案を提示。
