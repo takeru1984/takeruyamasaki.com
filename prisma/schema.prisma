@@ -1,0 +1,60 @@
+// Prisma schema for EcoFlow + SwitchBot Monitoring MVP
+// See docs/SCHEMA.md for data retention and semantics.
+// Database: Vercel Postgres (POSTGRES_PRISMA_URL for serverless, POSTGRES_URL_NON_POOLING for migrations)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model DeviceState {
+  id               String   @id @default(uuid())
+  collectedAt      DateTime @map("collected_at") @db.Timestamptz(6)
+  source           String   @db.VarChar(50)
+  soc              Int?
+  wattsIn          Int?     @map("watts_in")
+  wattsOut         Int?     @map("watts_out")
+  switchbotState   String?  @map("switchbot_state") @db.VarChar(10)
+  rawPayload       Json?    @map("raw_payload")
+
+  @@index([collectedAt(sort: Desc)])
+  @@map("device_state")
+}
+
+model OperationLog {
+  id         String   @id @default(uuid())
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+  actorId    String   @map("actor_id") @db.VarChar(100)
+  action     String   @db.VarChar(50)
+  target     String   @db.VarChar(50)
+  reason     String?  @db.Text
+  isAuto     Boolean  @map("is_auto")
+  details    Json?    @map("details")
+
+  @@index([occurredAt(sort: Desc)])
+  @@map("operation_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  alertSlug String   @map("alert_slug") @db.VarChar(100)
+  sentAt    DateTime @map("sent_at") @db.Timestamptz(6)
+  channel   String   @db.VarChar(20)
+  payload   Json?    @map("payload")
+
+  @@map("notifications")
+}
+
+model SystemStatus {
+  id                Int      @id
+  lastPollAt        DateTime? @map("last_poll_at") @db.Timestamptz(6)
+  pollFailureCount  Int      @default(0) @map("poll_failure_count")
+  lastSuccessSoc    Int?     @map("last_success_soc")
+
+  @@map("system_status")
+}
