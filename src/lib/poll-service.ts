@@ -4,6 +4,7 @@
  * Used by /api/poll (Vercel Cron only). See docs/SCHEMA.md and docs/SAFETY.md.
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { config } from "@/lib/config";
 import { fetchEcoFlowSnapshot } from "@/lib/ecoflow";
@@ -65,7 +66,7 @@ async function forceChargeOn(opts: ForceChargeOptions): Promise<void> {
       target: TARGET_PLUG,
       reason: opts.reason,
       isAuto: opts.isAuto,
-      details: { apiOk: ok, raw },
+      details: { apiOk: ok, raw: JSON.parse(JSON.stringify(raw ?? {})) } as Prisma.InputJsonValue,
     },
   });
 
@@ -115,7 +116,7 @@ export async function runPoll(): Promise<PollResult> {
           wattsIn: eco.wattsIn,
           wattsOut: eco.wattsOut,
           switchbotState: null,
-          rawPayload: eco.raw as object,
+          rawPayload: JSON.parse(JSON.stringify(eco.raw ?? {})) as Prisma.InputJsonValue,
         },
         ...(config.switchbot.plugDeviceId()
           ? [{
@@ -125,7 +126,7 @@ export async function runPoll(): Promise<PollResult> {
               wattsIn: null,
               wattsOut: null,
               switchbotState: plugState,
-              rawPayload: {},
+              rawPayload: {} as Prisma.InputJsonValue,
             }]
           : []),
       ],

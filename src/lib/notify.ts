@@ -4,6 +4,7 @@
  * 環境変数が無ければスキップ＆ログ。
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 /** Cooldown minutes per alert_slug (docs/ALERTING.md) */
@@ -132,7 +133,7 @@ export async function sendAlert(
         target: "notifications",
         reason: `Alert ${alertSlug} suppressed (cooldown), last sent ${lastSentAt?.toISOString() ?? "never"}`,
         isAuto: true,
-        details: { alertSlug, payload, lastSentAt: lastSentAt?.toISOString() },
+        details: JSON.parse(JSON.stringify({ alertSlug, payload, lastSentAt: lastSentAt?.toISOString() })) as Prisma.InputJsonValue,
       },
     }).catch(() => {});
     return {
@@ -167,7 +168,7 @@ export async function sendAlert(
         alertSlug,
         sentAt: new Date(),
         channel: sentChannels.join(","),
-        payload: payload as object,
+        payload: JSON.parse(JSON.stringify(payload)) as Prisma.InputJsonValue,
       },
     });
   }

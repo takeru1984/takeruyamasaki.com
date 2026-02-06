@@ -6,6 +6,7 @@
  * SoC が安全域 (>SOC_SAFE_MIN) で override 指定 + 理由必須 + PIN OK のときのみ OFF 許可。
  */
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { config } from "@/lib/config";
 import { setSwitchBotPlugState } from "@/lib/switchbot";
@@ -112,11 +113,17 @@ export async function POST(request: Request) {
   const { ok, raw } = await setSwitchBotPlugState(deviceId, wantOn);
   const logAction = wantOn ? "CHARGE_ON" : "CHARGE_OFF";
 
-  const logDetails: Record<string, unknown> = { apiOk: ok, raw };
+  const rawJson: Prisma.JsonValue = raw as Prisma.JsonValue;
+  const logDetails: Prisma.JsonObject = {
+    apiOk: ok,
+    raw: rawJson,
+  };
   if (!wantOn) {
     logDetails.overrideLowSoc = overrideLowSoc;
     logDetails.staleData = socStatus.isStale;
-    if (overrideLowSoc && reason) logDetails.overrideReason = reason;
+    if (overrideLowSoc && reason) {
+      logDetails.overrideReason = reason;
+    }
   }
 
   await prisma.operationLog.create({
