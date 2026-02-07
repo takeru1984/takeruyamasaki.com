@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireDbConfigured } from "@/lib/env-status";
 import { config } from "@/lib/config";
-import { fetchEcoFlowSnapshot } from "@/lib/ecoflow";
+import { fetchEcoFlowSnapshot, EcoFlowApiError } from "@/lib/ecoflow";
 import {
   getSwitchBotPlugState,
   setSwitchBotPlugState,
@@ -85,7 +85,6 @@ export async function runPoll(): Promise<PollResult> {
   const status = await prisma.systemStatus.findUnique({ where: { id: 1 } });
   const currentFailureCount = status?.pollFailureCount ?? 0;
 
-  // 1) Consecutive failure threshold: bypass normal flow, force ON
   if (currentFailureCount >= FAILURE_THRESHOLD) {
     await forceChargeOn({
       reason: `Poll failure count >= ${FAILURE_THRESHOLD} (fail-safe)`,
@@ -189,6 +188,15 @@ export async function runPoll(): Promise<PollResult> {
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const ecoflowCode =
+      err instanceof EcoFlowApiError ? String(err.code ?? "") : undefined;
+    const ecoflowMsg =
+      err instanceof EcoFlowApiError ? err.ecoflowMessage : undefined;
+    const reasonText =
+      ecoflowCode && (ecoflowCode === "8521" || ecoflowCode === "8524")
+        ? `EcoFlow ${ecoflowCode} (${ecoflowCode === "8521" ? "signature" : "timestamp"}): ${ecoflowMsg ?? message}`
+        : message;
+
     const newCount = currentFailureCount + 1;
     await prisma.systemStatus.update({
       where: { id: 1 },
@@ -199,7 +207,7 @@ export async function runPoll(): Promise<PollResult> {
 
     if (newCount >= FAILURE_THRESHOLD) {
       await forceChargeOn({
-        reason: `Poll error and failure count >= ${FAILURE_THRESHOLD}: ${message}`,
+        reason: `Poll error and failure count >= ${FAILURE_THRESHOLD}: ${reasonText}`,
         isAuto: true,
         alertSlug: "poll_failure",
       });
@@ -213,7 +221,7 @@ export async function runPoll(): Promise<PollResult> {
 
     return {
       ok: false,
-      reason: message,
+      reason: reasonText,
       pollFailureCount: newCount,
     };
   }

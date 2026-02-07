@@ -1,13 +1,22 @@
 # Architecture Overview
 
 ## High-Level Flow
-1. **Vercel Cron → `/api/poll`** every 2 minutes (Pro plan). Poll handler fans out to:
-   - EcoFlow API (REST websocket fallback) for battery metrics.
-   - SwitchBot cloud API for plug status.
-2. Handler normalizes payloads, evaluates alerts/fail-safe logic, persists records into Postgres.
-3. UI routes (`/dashboard`, `/history`, `/logs`) read exclusively from Postgres using ISR/SSR caches to avoid hitting vendor APIs.
-4. `/api/control` executes SwitchBot commands with guardrails, updates DB, and optionally enqueues notification jobs.
-5. Notification worker shares code with poll handler to send email/LINE when thresholds breached, using dedupe state in DB.
+1. **Trigger**: Vercel Cron invokes `/api/poll` every 2 minutes.
+2. **Data Acquisition**:
+   - **EcoFlow IoT API**: Direct REST call with HMAC-SHA256 signing (Primary).
+   - **SwitchBot API**: Fetch current plug relay state.
+3. **Logic Evaluation**:
+   - Update `system_status` (failure counters/success timestamps).
+   - SoC Check: If SoC < Critical threshold → Trigger `CHARGE_ON`.
+   - Fail-safe Check: If failures >= 3 → Trigger `CHARGE_ON`.
+4. **Persistence**: Write results to `device_state` and `operation_logs`.
+5. **Notification**: Send alerts via LINE/Email if automatic actions were taken.
+6. **Delivery**: UI (`/dashboard`) reflects the latest DB state; User issues manual commands via `/api/control`.
+
+## Worker Fallback (Secondary / Proxy)
+While the system defaults to **Direct API** for lower latency and simplicity, the legacy `WORKER_URL` logic is retained as a fallback:
+- **Redundancy**: Used if direct Vercel -> EcoFlow connectivity is throttled or blocked.
+- **Account Mirroring**: Useful if metrics need to be proxied from a different EcoFlow account region without changing main app secrets.
 
 ## Components
 - **Frontend**: Next.js App Router on Vercel, Tailwind UI. Auth middleware gating all routes.

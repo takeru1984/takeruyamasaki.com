@@ -57,6 +57,8 @@ Preview/Production それぞれの環境に同じ値が必要です。
 ## 7. トラブルシューティング
 - Prismaエラー: `POSTGRES_*` の値が間違っていないか確認し、`npm run db:push` をローカルで実行して再デプロイ
 - Cron 401: `CRON_SECRET` が Vercel設定と `.env` で一致しているかを確認
+- **EcoFlow 8521 (Signature Error)**: 署名生成時に `sn`（シリアル番号）を含めていないか確認してください。署名対象は `accessKey`, `nonce`, `timestamp` のみです。
+- **LINE 通知が失敗する/環境的に不通**: Vercel から LINE API への接続エラー (`ENOTFOUND` 等) が発生する場合、Vercel Dashboard の Environment Variables から `LINE_NOTIFY_TOKEN` を削除（または値を空に）して再デプロイしてください。システムは LINE をスキップしてメール通知を優先します。
 - 通知が届かない: `operation_logs` と `notifications` テーブルで suppression/送信結果を確認し、トークン/メールAPIキーを再度チェック
 
 以上で GitHub ↔ Vercel デプロイの基本フローは完了です。

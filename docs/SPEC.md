@@ -7,7 +7,11 @@
 
 ## Functional Scope
 ### Monitoring
-- Poll EcoFlow REST API (battery, input/output watts, SoC, errors) at high frequency (e.g., every 2 min) via `/api/poll` cron job.
+- Poll EcoFlow IoT Open Platform REST API (battery, input/output watts, SoC, errors) at high frequency (e.g., every 2 min) via `/api/poll` cron job.
+- Region-specific endpoints:
+  - Global/US: `https://api-a.ecoflow.com`
+  - Europe: `https://api-e.ecoflow.com`
+  - Others: `https://api.ecoflow.com`
 - Poll SwitchBot plug (charger side only) to confirm relay state with each EcoFlow poll.
 - Persist every poll snapshot into Postgres `device_state` table (timestamped, raw payload, derived SoC metrics).
 - UI `/dashboard` surfaces latest snapshot, SoC trend (last 24h), and highlight “critical devices” (EcoFlow battery, SwitchBot charger, solar input).
@@ -46,6 +50,33 @@
 - Vercel app (Next.js). Scheduled Functions or Vercel Cron invoke `/api/poll` every 2 min (requires Pro plan) + `/api/notify-digest` hourly.
 - Database: Vercel Postgres or Supabase (prefer hosted Postgres for SQL + history retention).
 - `.env.example` lists EcoFlow API token, SwitchBot token/deviceId, LINE token, SMTP creds, Auth secrets, PIN hash, DB URL.
+
+## EcoFlow API Specifications (Direct API)
+
+### Authentication & Signature
+Requests must include authentication headers and a signature generated as follows:
+
+- **Algorithm**: HMAC-SHA256
+- **Secret**: `ECOFLOW_SECRET_KEY`
+- **Headers**:
+  - `accessKey`: Your Access Key.
+  - `nonce`: Random string (e.g., 6-digit number or larger).
+  - `timestamp`: Current UTC time in **milliseconds**.
+  - `sign`: Generated HMAC-SHA256 hex string.
+- **Signature Base String**:
+  1. Gather authentication parameters: `accessKey`, `nonce`, and `timestamp`. (Note: `sn` and other data parameters are **EXCLUDED** from the signature base string).
+  2. Sort parameter keys alphabetically.
+  3. Form a string: `accessKey=VAL&nonce=VAL&timestamp=VAL`.
+  4. Perform HMAC-SHA256(secret, baseString) and convert to lowercase hex.
+
+### Error Codes
+- `0`: Success
+- `8521`: Signature error (invalid sign or mismatch in base string).
+- `8524`: Timestamp error (client/server time out of sync > 15 min).
+- `404`: Endpoint or Device SN not found.
+
+> [!TIP]
+> Operational verification and manual `curl` steps are detailed in [POST_DEPLOY_VERIFICATION.md](file:///Users/takeru/Library/CloudStorage/GoogleDrive-takeru@cloudnine.llc/%E5%85%B1%E6%9C%89%E3%83%89%E3%83%A9%E3%82%A4%E3%83%96/Cloudnine/02_Coding/05_ECOFLOW%20Dashboard/docs/POST_DEPLOY_VERIFICATION.md).
 
 ## Non-Functional Requirements
 - Average poll handler must finish < 10s to stay within Vercel function timeout.
