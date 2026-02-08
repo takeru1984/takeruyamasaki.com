@@ -9,15 +9,23 @@ import { createHmac } from "crypto";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-// Load .env.local manually (Node < 20.6 has no --env-file)
-try {
-  const envPath = resolve(process.cwd(), ".env.local");
-  const content = readFileSync(envPath, "utf8");
-  for (const line of content.split("\n")) {
-    const m = line.match(/^([^#=]+)=(.*)$/);
-    if (m) process.env[m[1].trim()] = m[2].trim();
+// Load env: VERCEL_ENV_FILE or .vercel/.env.production.local (after vercel env pull) else .env.local
+function loadEnv(path) {
+  try {
+    const content = readFileSync(resolve(process.cwd(), path), "utf8");
+    for (const line of content.split("\n")) {
+      const m = line.match(/^([^#=]+)=(.*)$/);
+      if (m) process.env[m[1].trim()] = m[2].trim();
+    }
+    return true;
+  } catch {
+    return false;
   }
-} catch {}
+}
+// VERCEL_ENV_FILE, .env.production.local (vercel env pull), .env.local の順で試行
+const vercelEnv = process.env.VERCEL_ENV_FILE;
+if (vercelEnv) loadEnv(vercelEnv);
+else if (!loadEnv(".env.production.local")) loadEnv(".env.local");
 
 const accessKey = (process.env.ECOFLOW_ACCESS_KEY ?? "").trim();
 const secretKey = (process.env.ECOFLOW_SECRET_KEY ?? "").trim();

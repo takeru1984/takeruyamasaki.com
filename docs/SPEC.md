@@ -75,6 +75,16 @@ Requests must include authentication headers and a signature generated as follow
 - `8524`: Timestamp error (client/server time out of sync > 15 min).
 - `404`: Endpoint or Device SN not found.
 
+### API App Status Verification
+If `accessKey invalid` persists despite correct credentials:
+1. **Developer Portal Check**:
+   - URL: [developer.ecoflow.com](https://developer.ecoflow.com) (Global) or [developer-eu.ecoflow.com](https://developer-eu.ecoflow.com) (EU).
+   - Log in and ensure your "App" status is **Active** (Not Pending/Expired).
+2. **Device Binding**:
+   - Verify the `DEVICE_SN` is explicitly bound to your developer account in the portal's device management section.
+3. **Quota/Rate Limits**:
+   - Check if the daily quota is exhausted (Success code 0 but empty data might also indicate exhaustion).
+
 > [!TIP]
 > Operational verification and manual `curl` steps are detailed in [POST_DEPLOY_VERIFICATION.md](file:///Users/takeru/Library/CloudStorage/GoogleDrive-takeru@cloudnine.llc/%E5%85%B1%E6%9C%89%E3%83%89%E3%83%A9%E3%82%A4%E3%83%96/Cloudnine/02_Coding/05_ECOFLOW%20Dashboard/docs/POST_DEPLOY_VERIFICATION.md).
 

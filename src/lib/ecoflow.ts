@@ -175,11 +175,32 @@ async function fetchViaDirectApi(): Promise<EcoFlowSnapshot> {
   };
 }
 
+function isEcoFlowAuthError(err: unknown): boolean {
+  if (!(err instanceof EcoFlowApiError)) return false;
+  const code = String(err.code ?? "");
+  const msg = (err.ecoflowMessage ?? err.message ?? "").toLowerCase();
+  if (code === "8521" || code === "8524") return true;
+  if (msg.includes("accesskey") && msg.includes("invalid")) return true;
+  if (msg.includes("signature") || msg.includes("timestamp")) return true;
+  return false;
+}
+
 export async function fetchEcoFlowSnapshot(): Promise<EcoFlowSnapshot> {
   const workerConfigured = process.env.WORKER_URL && process.env.WORKER_AUTH_TOKEN;
   const directConfigured =
     process.env.ECOFLOW_ACCESS_KEY && process.env.ECOFLOW_SECRET_KEY && process.env.ECOFLOW_DEVICE_SN;
+  const useWorkerFirst = process.env.ECOFLOW_USE_WORKER_FIRST === "1";
 
+  if (workerConfigured && useWorkerFirst) {
+    try {
+      return await fetchViaWorker();
+    } catch (workerErr) {
+      if (directConfigured) {
+        return await fetchViaDirectApi();
+      }
+      throw workerErr;
+    }
+  }
   if (!directConfigured && workerConfigured) {
     return fetchViaWorker();
   }
@@ -192,11 +213,8 @@ export async function fetchEcoFlowSnapshot(): Promise<EcoFlowSnapshot> {
   try {
     return await fetchViaDirectApi();
   } catch (directErr) {
-    const isAuthError =
-      directErr instanceof EcoFlowApiError &&
-      (String(directErr.code) === "8521" || String(directErr.code) === "8524");
     const skipWorkerFallback = process.env.ECOFLOW_DIRECT_API_ONLY === "1" || process.env.ECOFLOW_SKIP_WORKER_FALLBACK === "1";
-    if (workerConfigured && isAuthError && !skipWorkerFallback) {
+    if (workerConfigured && isEcoFlowAuthError(directErr) && !skipWorkerFallback) {
       return fetchViaWorker();
     }
     throw directErr;

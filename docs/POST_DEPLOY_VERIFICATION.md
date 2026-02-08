@@ -90,6 +90,30 @@ Vercel の Cron Jobs 機能を利用するには **Pro プラン** 以上が必�
 - `LINE_NOTIFY_TOKEN` が空なら LINE 通知は **スキップ** され、メール（`RESEND_API_KEY` + `ALERT_EMAIL_TO`）のみが使用される。メールが未設定の場合はアラートは届かないが、`/api/poll` の成否には影響しない。
 - メール設定を優先して整えたうえで、必要に応じて LINE を再有効化する。
 
+### 5.2 Vercel vs Local 環境変数の同期（トラブルシューティング）
+Vercel 本番環境で `accessKey invalid` 等のエラーが出る場合、環境変数が不一致または古い可能性があります。
+
+1. **Vercel 本番値をローカルに取得**:
+   ```bash
+   # プロジェクトディレクトリで実行
+   npx vercel env pull .env.production.local
+   ```
+2. **値の照合**:
+   `.env.local` と `.env.production.local` を開き、以下の値が完全に（空白含め）一致しているか確認します。
+   - `ECOFLOW_ACCESS_KEY`
+   - `ECOFLOW_SECRET_KEY`
+   - `ECOFLOW_DEVICE_SN`
+   - `ECOFLOW_REGION` (api-a, api-e, or api)
+
+3. **反映**:
+   Vercel Dashboard で修正した場合は、再ビルド（Deployments -> Redeploy）が必要です。
+
+4. **Worker フォールバック（一時対策）**:
+   Vercel のキー不一致が解消するまで、Worker 経由で安定化させる方法:
+   - Vercel Environment Variables に `WORKER_URL`, `WORKER_AUTH_TOKEN` を設定（Worker が稼働している場合）
+   - `ECOFLOW_USE_WORKER_FIRST=1` を追加すると Worker を優先、失敗時のみ直API
+   - 直API が `accessKey invalid` / 8521 / 8524 を返す場合も Worker へフォールバックする
+
 ---
 
 ## 6. EcoFlow Direct API 手動検証 (curl)
