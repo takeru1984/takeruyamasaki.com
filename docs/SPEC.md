@@ -71,19 +71,29 @@ Requests must include authentication headers and a signature generated as follow
 
 ### Error Codes
 - `0`: Success
+- `8513`: AccessKey invalid (key revoked, expired, or wrong portal/region).
 - `8521`: Signature error (invalid sign or mismatch in base string).
 - `8524`: Timestamp error (client/server time out of sync > 15 min).
 - `404`: Endpoint or Device SN not found.
 
-### API App Status Verification
+### Key Regeneration (accessKey invalid / 8513)
+1. Log in to [developer.ecoflow.com](https://developer.ecoflow.com) (Global) or [developer-eu.ecoflow.com](https://developer-eu.ecoflow.com) (EU).
+2. Open your App → **Credentials** or **Key Management**.
+3. **Regenerate** or **Create new** Access Key and Secret Key. Copy both immediately (Secret is shown only once).
+4. Update `.env.local` and Vercel Environment Variables with the new values.
+5. Redeploy and run `scripts/verify-ecoflow-node.mjs` until `code=0`.
+
+### Developer Portal Checklist
 If `accessKey invalid` persists despite correct credentials:
-1. **Developer Portal Check**:
-   - URL: [developer.ecoflow.com](https://developer.ecoflow.com) (Global) or [developer-eu.ecoflow.com](https://developer-eu.ecoflow.com) (EU).
-   - Log in and ensure your "App" status is **Active** (Not Pending/Expired).
-2. **Device Binding**:
-   - Verify the `DEVICE_SN` is explicitly bound to your developer account in the portal's device management section.
-3. **Quota/Rate Limits**:
-   - Check if the daily quota is exhausted (Success code 0 but empty data might also indicate exhaustion).
+1. **Region Consistency**:
+   - **Global/US**: [developer.ecoflow.com](https://developer.ecoflow.com)
+   - **Europe/EU**: [developer-eu.ecoflow.com](https://developer-eu.ecoflow.com)
+   - *Crucial*: Ensure your keys were issued on the portal matching your device's physical region. Mixing keys/portals often leads to invalid status.
+2. **App Status**:
+   - Ensure the App is **"Normal"** or **"Active"**.
+   - Review "Expiration Date" (if applicable) or "Certification Status".
+3. **Data/Device Binding**:
+   - Verify that the `DEVICE_SN` appears in the "Authorized Devices" or "Quota Management" list to ensure the account has permission to read that specific unit.
 
 > [!TIP]
 > Operational verification and manual `curl` steps are detailed in [POST_DEPLOY_VERIFICATION.md](file:///Users/takeru/Library/CloudStorage/GoogleDrive-takeru@cloudnine.llc/%E5%85%B1%E6%9C%89%E3%83%89%E3%83%A9%E3%82%A4%E3%83%96/Cloudnine/02_Coding/05_ECOFLOW%20Dashboard/docs/POST_DEPLOY_VERIFICATION.md).

@@ -54,11 +54,20 @@ Preview/Production それぞれの環境に同じ値が必要です。
 3. `curl https://<project>.vercel.app/api/poll -H "Authorization: Bearer <CRON_SECRET>"` を実行し、DBにレコードが生成されるか確認
 4. LINE/Email 通知が届くかをテスト（必要なら `.env.local` でも同じ値でローカル検証）
 
-## 7. トラブルシューティング
-- Prismaエラー: `POSTGRES_*` の値が間違っていないか確認し、`npm run db:push` をローカルで実行して再デプロイ
-- Cron 401: `CRON_SECRET` が Vercel設定と `.env` で一致しているかを確認
-- **EcoFlow 8521 (Signature Error)**: 署名生成時に `sn`（シリアル番号）を含めていないか確認してください。署名対象は `accessKey`, `nonce`, `timestamp` のみです。
-- **LINE 通知が失敗する/環境的に不通**: Vercel から LINE API への接続エラー (`ENOTFOUND` 等) が発生する場合、Vercel Dashboard の Environment Variables から `LINE_NOTIFY_TOKEN` を削除（または値を空に）して再デプロイしてください。システムは LINE をスキップしてメール通知を優先します。
-- 通知が届かない: `operation_logs` と `notifications` テーブルで suppression/送信結果を確認し、トークン/メールAPIキーを再度チェック
+## 7. Emergency Recovery (緊急時の対応フロー)
 
-以上で GitHub ↔ Vercel デプロイの基本フローは完了です。
+直APIが `8521` 等で停止し、解決しない場合の最終手段：
+
+### 7.1 キーの再発行と反映
+1. ポータル（SPEC.md 参照）で **Secret Key の再生成 (Refresh)** を行う。
+2. Vercel の Environment Variables で値を更新。
+3. `npx vercel env pull` でローカルを同期し、`scripts/verify-ecoflow-node.mjs` で `code=0` を確認。
+4. Production を再デプロイ。
+
+### 7.2 Worker フォールバックへの暫定復旧
+直APIの問題が解決するまで、Cloudflare Worker 経由を優先させる場合：
+- Vercel の環境変数に `ECOFLOW_USE_WORKER_FIRST=1` を設定。
+- これにより、故障していない Worker システム（あれば）が優先されます。
+
+### 7.3 リージョンの変更
+- `ECOFLOW_REGION` を `eu` ↔ `us` で切り替えてホストを変更し、疎通を確認。

@@ -78,30 +78,28 @@ function extractNumber(obj: Record<string, unknown>, ...paths: string[]): number
 async function fetchViaWorker(): Promise<EcoFlowSnapshot> {
   const url = process.env.WORKER_URL;
   const token = process.env.WORKER_AUTH_TOKEN;
-  if (!url || !token) throw new Error("Worker not configured");
+  if (!url || !token) throw new EcoFlowApiError("Worker not configured");
 
   const res = await fetch(url.replace(/\/+$/, ""), {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
     signal: AbortSignal.timeout(15000),
   });
   const text = await res.text();
   if (!res.ok) throw new EcoFlowApiError(`Worker HTTP ${res.status}: ${text.slice(0, 150)}`);
 
-  let json: { soc?: number; wattsIn?: number; wattsOut?: number; raw?: unknown };
+  let json: unknown;
   try {
     json = JSON.parse(text);
   } catch {
     throw new EcoFlowApiError(`Worker invalid JSON: ${text.slice(0, 150)}`);
   }
-  if (typeof json.soc !== "number") throw new EcoFlowApiError("Worker JSON missing soc");
 
-  return {
-    soc: json.soc,
-    wattsIn: typeof json.wattsIn === "number" ? json.wattsIn : 0,
-    wattsOut: typeof json.wattsOut === "number" ? json.wattsOut : 0,
-    raw: json.raw ?? json,
-  };
+  return parseEcoFlowSnapshotFromResponse(json);
 }
 
 async function fetchViaDirectApi(): Promise<EcoFlowSnapshot> {
@@ -156,16 +154,47 @@ async function fetchViaDirectApi(): Promise<EcoFlowSnapshot> {
     throw new EcoFlowApiError(`EcoFlow API error: ${ecoMsg ?? String(code ?? "unknown")}`, code, ecoMsg);
   }
 
-  const rawData = json.data;
+  return parseEcoFlowSnapshotFromResponse(json);
+}
+
+type EcoFlowApiResponse = {
+  code?: number | string;
+  message?: string;
+  success?: boolean;
+  data?: Record<string, unknown> | { data?: Record<string, unknown> };
+};
+
+function parseEcoFlowSnapshotFromResponse(json: unknown): EcoFlowSnapshot {
+  const typed = json as EcoFlowApiResponse | undefined;
+  if (!typed || (typed.code !== 0 && typed.code !== "0" && typed.success !== true)) {
+    throw new EcoFlowApiError("Worker/Direct response missing success code");
+  }
+
+  const rawData = typed.data;
   if (!rawData || typeof rawData !== "object") {
-    throw new EcoFlowApiError(`EcoFlow missing data field: ${text.slice(0, 150)}`);
+    throw new EcoFlowApiError("EcoFlow missing data field");
   }
 
   const inner = (rawData as { data?: Record<string, unknown> }).data ?? (rawData as Record<string, unknown>);
 
   const soc = extractNumber(inner, "pd.soc", "pd.bpPowerSoc", "soc", "socSum", "bat.soc", "bpSoC");
-  const wattsIn = extractNumber(inner, "pd.inPower", "pd.wattsIn", "pd.acInPower", "pd.dcInPower", "wattsIn", "inputWatts");
-  const wattsOut = extractNumber(inner, "pd.outPower", "pd.acOutPower", "pd.dcOutPower", "wattsOut", "outputWatts");
+  const wattsIn = extractNumber(
+    inner,
+    "pd.inPower",
+    "pd.wattsIn",
+    "pd.acInPower",
+    "pd.dcInPower",
+    "wattsIn",
+    "inputWatts"
+  );
+  const wattsOut = extractNumber(
+    inner,
+    "pd.outPower",
+    "pd.acOutPower",
+    "pd.dcOutPower",
+    "wattsOut",
+    "outputWatts"
+  );
 
   return {
     soc: Math.min(100, Math.max(0, soc)),
@@ -179,7 +208,7 @@ function isEcoFlowAuthError(err: unknown): boolean {
   if (!(err instanceof EcoFlowApiError)) return false;
   const code = String(err.code ?? "");
   const msg = (err.ecoflowMessage ?? err.message ?? "").toLowerCase();
-  if (code === "8521" || code === "8524") return true;
+  if (["8521", "8524", "8513"].includes(code)) return true;
   if (msg.includes("accesskey") && msg.includes("invalid")) return true;
   if (msg.includes("signature") || msg.includes("timestamp")) return true;
   return false;

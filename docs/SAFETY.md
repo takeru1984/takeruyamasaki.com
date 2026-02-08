@@ -63,5 +63,8 @@ In the event of 3+ consecutive poll failures (Communication Blackout):
 
 ## Operational Runbooks (initial)
 - Recovery: If notifications indicate repeated failures, operator must confirm charger LED physically, then check SwitchBot app.
+- **Mandatory Logic Verification**:
+  - APIキー更新後や署名関連の修正後は、必ず `scripts/verify-ecoflow-node.mjs` を実行すること。
+  - **Proof of Success**: 成功時（`✅ Success: code=0`）のログまたはスクリーンショットを完了報告（PR/issue等）に添付し、証跡を残す運用を徹底する。
 - Manual override: Provide CLI script `scripts/force_charge_on.ts` hitting `/api/control?action=charge_on&source=cli` with service account.
 

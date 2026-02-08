@@ -95,20 +95,26 @@ Vercel 本番環境で `accessKey invalid` 等のエラーが出る場合、環�
 
 1. **Vercel 本番値をローカルに取得**:
    ```bash
-   # プロジェクトディレクトリで実行
-   npx vercel env pull .env.production.local
+   npx vercel env pull .vercel/.env.production.local --environment=production
    ```
 2. **値の照合**:
-   `.env.local` と `.env.production.local` を開き、以下の値が完全に（空白含め）一致しているか確認します。
+   ```bash
+   node scripts/compare-ecoflow-env.mjs
+   ```
+   `.env.local` と `.vercel/.env.production.local` の以下が一致するか確認します。
    - `ECOFLOW_ACCESS_KEY`
    - `ECOFLOW_SECRET_KEY`
    - `ECOFLOW_DEVICE_SN`
    - `ECOFLOW_REGION` (api-a, api-e, or api)
 
-3. **反映**:
+3. **accessKey invalid (8513) の場合**:
+   環境変数が一致していても 8513 が出る場合は、キーが無効化・期限切れの可能性があります。
+   EcoFlow Developer ポータルで **新しい Access Key / Secret Key を再発行**し、`.env.local` と Vercel の両方に貼り直してください。`docs/SPEC.md` の「Key Regeneration」を参照。
+
+4. **反映**:
    Vercel Dashboard で修正した場合は、再ビルド（Deployments -> Redeploy）が必要です。
 
-4. **Worker フォールバック（一時対策）**:
+5. **Worker フォールバック（一時対策）**:
    Vercel のキー不一致が解消するまで、Worker 経由で安定化させる方法:
    - Vercel Environment Variables に `WORKER_URL`, `WORKER_AUTH_TOKEN` を設定（Worker が稼働している場合）
    - `ECOFLOW_USE_WORKER_FIRST=1` を追加すると Worker を優先、失敗時のみ直API
