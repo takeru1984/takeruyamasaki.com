@@ -13,6 +13,13 @@ A Next.js-based monitoring and control dashboard to prevent EcoFlow battery exha
 - **Alerting**: LINE Notify and Email integration for critical thresholds.
 - **Audit Logs**: Full history of manual and automatic actions.
 
+## 🔑 EcoFlow API Signature Spec
+The direct API integration follows the **EcoFlow IoT Open Platform** specification:
+- **Algorithm**: HMAC-SHA256(secretKey, baseString)
+- **Base String**: `accessKey=VAL&nonce=VAL&timestamp=VAL` (Note: **`sn` is excluded from signature**)
+- **Timestamp**: UTC milliseconds
+- **Impact**: Correct signature generation is critical for the Cron-based monitoring flow. A signature mismatch (Error 8521) will halt data polling and trigger the safety fail-safe.
+
 ## Getting Started
 
 ### Prerequisites
@@ -75,7 +82,8 @@ If you receive a **Poll Failure** or **SoC Critical** alert:
 1. **Check Status**: Login to the Dashboard and check `operation_logs`.
 2. **Physical Verification**: Ensure the EcoFlow charging LED is blinking and the SwitchBot plug is physically "ON".
 3. **Manual Override**: Use the `FORCE ON` button in the UI or use the SwitchBot app directly if the dashboard is unreachable.
-4. **Hard Reset**: If the API is consistently failing (Auth error), rotate EcoFlow keys and update Vercel environment variables.
+- **Notification Troubleshooting**: If LINE is unreachable from your network (DNS errors), simply remove `LINE_NOTIFY_TOKEN` from environment variables. The system will skip LINE and fallback to Email without affecting the polling flow.
+- **Hard Reset**: If the API is consistently failing (Auth error), rotate EcoFlow keys and update Vercel environment variables.
 
 ## Control API (POST /api/control)
 
