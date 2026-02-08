@@ -14,11 +14,16 @@
 - Poll loop compares reported SoC vs previous reading; if SoC drops unexpectedly >10% per poll, treat as sensor fault and force ON.
 
 ## API & Communication Safety
+- **EcoFlow Data Source**: When `WORKER_URL` and `WORKER_AUTH_TOKEN` are set, `/api/poll` **always** uses the Cloudflare Worker. Direct EcoFlow REST API is only called when Worker is not configured, or when `ECOFLOW_ALLOW_DIRECT_FALLBACK=1` and the Worker call fails.
 - **Host Redundancy**: The system should attempt regional endpoints (api-a, api-e, api) to mitigate regional outages.
 - **Signature Timing**: Ensure Vercel server time is used for timestamps; a mismatch > 15 min results in Error 8524.
 - **Fail-safe Logic**:
-  - API errors (e.g., Signature 8521, Server 500) increment `poll_failure_count`.
+  - API errors (from Worker or Direct API) increment `poll_failure_count`.
   - When `poll_failure_count` >= 3 → call SwitchBot `turnOn`, log auto action, and alert operators.
+  - **Worker Downtime Procedure**:
+    1. Verify direct API status using `scripts/verify-ecoflow-node.mjs`.
+    2. Check Worker health manually via `curl` if possible.
+    3. If Worker is persistent down, set `ECOFLOW_ALLOW_DIRECT_FALLBACK=1` in Vercel env to maintain polling while Worker is being repaired.
   - If last successful poll timestamp is older than 10 min, UI banner instructs manual hardware verification.
 
 ## Notification Throttling & Prioritization

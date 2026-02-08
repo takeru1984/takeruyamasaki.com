@@ -115,10 +115,8 @@ Vercel 本番環境で `accessKey invalid` 等のエラーが出る場合、環�
    Vercel Dashboard で修正した場合は、再ビルド（Deployments -> Redeploy）が必要です。
 
 5. **Worker フォールバック（一時対策）**:
-   Vercel のキー不一致が解消するまで、Worker 経由で安定化させる方法:
-   - Vercel Environment Variables に `WORKER_URL`, `WORKER_AUTH_TOKEN` を設定（Worker が稼働している場合）
-   - `ECOFLOW_USE_WORKER_FIRST=1` を追加すると Worker を優先、失敗時のみ直API
-   - 直API が `accessKey invalid` / 8521 / 8524 を返す場合も Worker へフォールバックする
+   `WORKER_URL` + `WORKER_AUTH_TOKEN` が設定されている場合、`/api/poll` は常に Worker を優先します。
+   Worker 失敗時に直APIへフォールバックするには `ECOFLOW_ALLOW_DIRECT_FALLBACK=1` を設定してください。
 
 ---
 

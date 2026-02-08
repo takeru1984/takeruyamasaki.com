@@ -204,48 +204,47 @@ function parseEcoFlowSnapshotFromResponse(json: unknown): EcoFlowSnapshot {
   };
 }
 
-function isEcoFlowAuthError(err: unknown): boolean {
-  if (!(err instanceof EcoFlowApiError)) return false;
-  const code = String(err.code ?? "");
-  const msg = (err.ecoflowMessage ?? err.message ?? "").toLowerCase();
-  if (["8521", "8524", "8513"].includes(code)) return true;
-  if (msg.includes("accesskey") && msg.includes("invalid")) return true;
-  if (msg.includes("signature") || msg.includes("timestamp")) return true;
-  return false;
+/** Returns true when Worker credentials (WORKER_URL + WORKER_AUTH_TOKEN) are set. */
+function isWorkerConfigured(): boolean {
+  return !!(process.env.WORKER_URL?.trim() && process.env.WORKER_AUTH_TOKEN?.trim());
+}
+
+function isDirectConfigured(): boolean {
+  return !!(
+    process.env.ECOFLOW_ACCESS_KEY?.trim() &&
+    process.env.ECOFLOW_SECRET_KEY?.trim() &&
+    process.env.ECOFLOW_DEVICE_SN?.trim()
+  );
 }
 
 export async function fetchEcoFlowSnapshot(): Promise<EcoFlowSnapshot> {
-  const workerConfigured = process.env.WORKER_URL && process.env.WORKER_AUTH_TOKEN;
-  const directConfigured =
-    process.env.ECOFLOW_ACCESS_KEY && process.env.ECOFLOW_SECRET_KEY && process.env.ECOFLOW_DEVICE_SN;
-  const useWorkerFirst = process.env.ECOFLOW_USE_WORKER_FIRST === "1";
+  const workerOk = isWorkerConfigured();
+  const directOk = isDirectConfigured();
+  const allowDirectFallback = process.env.ECOFLOW_ALLOW_DIRECT_FALLBACK === "1";
 
-  if (workerConfigured && useWorkerFirst) {
+  if (workerOk) {
     try {
       return await fetchViaWorker();
     } catch (workerErr) {
-      if (directConfigured) {
+      if (allowDirectFallback && directOk) {
+        const host = getHost();
+        console.warn(
+          "[ecoflow] Worker failed, falling back to direct API:",
+          (workerErr as Error).message,
+          "| fallback host:",
+          host
+        );
         return await fetchViaDirectApi();
       }
       throw workerErr;
     }
   }
-  if (!directConfigured && workerConfigured) {
-    return fetchViaWorker();
-  }
-  if (!directConfigured) {
-    throw new EcoFlowApiError(
-      "EcoFlow env not configured (ECOFLOW_ACCESS_KEY, ECOFLOW_SECRET_KEY, ECOFLOW_DEVICE_SN or WORKER_URL+WORKER_AUTH_TOKEN)"
-    );
+
+  if (directOk) {
+    return await fetchViaDirectApi();
   }
 
-  try {
-    return await fetchViaDirectApi();
-  } catch (directErr) {
-    const skipWorkerFallback = process.env.ECOFLOW_DIRECT_API_ONLY === "1" || process.env.ECOFLOW_SKIP_WORKER_FALLBACK === "1";
-    if (workerConfigured && isEcoFlowAuthError(directErr) && !skipWorkerFallback) {
-      return fetchViaWorker();
-    }
-    throw directErr;
-  }
+  throw new EcoFlowApiError(
+    "EcoFlow not configured (set WORKER_URL+WORKER_AUTH_TOKEN or ECOFLOW_ACCESS_KEY+SECRET_KEY+DEVICE_SN)"
+  );
 }

@@ -51,9 +51,14 @@
 - Database: Vercel Postgres or Supabase (prefer hosted Postgres for SQL + history retention).
 - `.env.example` lists EcoFlow API token, SwitchBot token/deviceId, LINE token, SMTP creds, Auth secrets, PIN hash, DB URL.
 
-## EcoFlow API Specifications (Direct API)
+## EcoFlow API Specifications
 
-### Authentication & Signature
+### Worker vs Direct API
+- **Worker (default when configured)**: If `WORKER_URL` and `WORKER_AUTH_TOKEN` are set, `/api/poll` always calls the Worker first and returns its result.
+- **Direct Fallback (opt-in)**: Only when `ECOFLOW_ALLOW_DIRECT_FALLBACK=1` AND the Worker call throws does the system fall back to the direct EcoFlow REST API. Default is 0 (no fallback).
+- **Fail-safe Mode**: If both the primary and fallback (if enabled) fail, or if neither is configured, the system increments the `pollFailureCount`.
+
+### Direct API (Authentication & Signature)
 Requests must include authentication headers and a signature generated as follows:
 
 - **Algorithm**: HMAC-SHA256
